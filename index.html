@@ -264,6 +264,11 @@ const wordsEN = [
 // Power-up words
 const powerUpWords = ['BOMB', 'HEAL', 'SLOW', 'NUKE']
 
+// Boss words — appear every 3 levels, worth 5x points
+const bossWordsKR = ['시뮬레이션', '프레임워크', '아키텍처', '프로그래밍', '인공지능']
+const bossWordsEN = ['apocalypse', 'destruction', 'constellation', 'infrastructure', 'typocalypse']
+const MAX_PARTICLES = 300
+
 function getWordPool() {
   const maxLenKR = Math.min(1 + Math.floor(level / 2), 7)
   const maxLenEN = Math.min(3 + level, 12)
@@ -726,6 +731,44 @@ function spawnWord() {
   })
 }
 
+function spawnBossWord() {
+  if (!gameActive) return
+  const bossPool = [...bossWordsKR, ...bossWordsEN]
+  const word = bossPool[Math.floor(Math.random() * bossPool.length)]
+  const fontSize = 26
+  const font = 'bold ' + fontSize + 'px "JetBrains Mono", monospace'
+
+  ctx.font = font
+  const textW = ctx.measureText(word).width
+  const x = W / 2 - textW / 2
+  const speed = 0.15 + level * 0.02
+
+  // Boss announcement
+  spawnFloatingText(W / 2, H * 0.15, '⚠️ BOSS WORD', 0, 28)
+
+  fallingWords.push({
+    text: word,
+    x, y: -40,
+    speed,
+    font,
+    fontSize,
+    width: textW,
+    hue: 300, // purple boss color
+    alpha: 0,
+    matched: 0,
+    destroyed: false,
+    points: word.length * 50 * level, // 5x points
+    spawnTime: time,
+    warningPulse: 0,
+    isPowerUp: false,
+    powerType: null,
+    swayOffset: 0,
+    swayAmp: 0.2,
+    swayFreq: 0.3,
+    isBoss: true,
+  })
+}
+
 // ═══════════════ INPUT MATCHING ═══════════════
 function checkMatch() {
   if (inputBuffer.length === 0) {
@@ -863,6 +906,11 @@ function destroyWord(w) {
     screenShake = 12
     spawnFloatingText(W / 2, H / 2, 'LEVEL ' + level, 120, 32)
     playLevelUpSound()
+
+    // Boss word every 3 levels
+    if (level % 3 === 0) {
+      setTimeout(() => spawnBossWord(), 500)
+    }
   }
 
   updateHUD()
@@ -930,6 +978,19 @@ function startGame() {
 
 function gameOver() {
   gameActive = false
+
+  // Death explosion — all remaining words explode
+  for (const w of fallingWords) {
+    if (!w.destroyed) {
+      spawnExplosion(w.x + w.width / 2, w.y, 0, 10)
+    }
+  }
+  // Central death burst
+  for (let i = 0; i < 5; i++) {
+    spawnRing(W / 2, H / 2, 0, i * 20, 16)
+  }
+  screenShake = 30
+
   const elapsed = (performance.now() - gameStartTime) / 1000
   const wpm = elapsed > 5 ? Math.round(totalTyped / 5 * (60 / elapsed)) : 0
 
@@ -1031,7 +1092,10 @@ function update(dt) {
     }
   }
 
-  // Update particles
+  // Update particles (with cap)
+  if (particles.length > MAX_PARTICLES) {
+    particles.splice(0, particles.length - MAX_PARTICLES)
+  }
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i]
     p.x += p.vx
@@ -1102,8 +1166,10 @@ function render() {
     )
   }
 
-  // ─── Background ───
-  ctx.fillStyle = '#06060c'
+  // ─── Background — shifts with level ───
+  const bgHue = (level * 15) % 360
+  const bgLight = 3 + intensity * 2
+  ctx.fillStyle = 'hsl(' + bgHue + ', 15%, ' + bgLight + '%)'
   ctx.fillRect(0, 0, W, H)
 
   // Background pulse (on destroy)
@@ -1182,6 +1248,23 @@ function render() {
     if (w.destroyed) continue
     ctx.font = w.font
     ctx.textBaseline = 'top'
+
+    // Boss word glow
+    if (w.isBoss) {
+      const pulse = 0.5 + 0.5 * Math.sin(time * 4)
+      const r = Math.max(w.width, w.fontSize) * 0.7
+      ctx.strokeStyle = 'hsla(300, 80%, 50%, ' + (w.alpha * 0.2 * pulse) + ')'
+      ctx.lineWidth = 2.5
+      ctx.beginPath()
+      ctx.arc(w.x + w.width / 2, w.y + w.fontSize / 2, r, 0, Math.PI * 2)
+      ctx.stroke()
+      // Second ring
+      ctx.strokeStyle = 'hsla(300, 80%, 50%, ' + (w.alpha * 0.1 * (1 - pulse)) + ')'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.arc(w.x + w.width / 2, w.y + w.fontSize / 2, r + 8, 0, Math.PI * 2)
+      ctx.stroke()
+    }
 
     // Power-up glow ring
     if (w.isPowerUp) {
