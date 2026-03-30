@@ -80,6 +80,39 @@
     margin-top: 20px;
     letter-spacing: 0.1em;
   }
+  .diff-row {
+    display: flex; gap: 12px; margin-bottom: 28px;
+  }
+  .diff-btn {
+    padding: 10px 22px; border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 2px; background: transparent;
+    color: rgba(255,255,255,0.35); font-family: inherit; font-size: 12px;
+    font-weight: 700; cursor: pointer; transition: all 0.2s;
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .diff-btn:hover { border-color: rgba(255,200,100,0.3); color: rgba(255,200,100,0.7); }
+  .diff-btn.active {
+    border-color: rgba(255,160,50,0.5); color: #ffaa00;
+    background: rgba(255,160,50,0.08);
+  }
+  #pause-overlay {
+    position: fixed; inset: 0; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    z-index: 110; background: rgba(6,6,12,0.92);
+  }
+  #pause-overlay.show { display: flex; }
+  #pause-overlay h2 {
+    font-size: 42px; font-weight: 800; color: rgba(255,200,100,0.6);
+    letter-spacing: 0.15em; margin-bottom: 16px;
+  }
+  #pause-overlay .pause-hint {
+    color: rgba(255,255,255,0.2); font-size: 12px; letter-spacing: 0.1em;
+  }
+  #mute-indicator {
+    position: fixed; top: 20px; right: 80px;
+    color: rgba(255,255,255,0.15); font-size: 11px; letter-spacing: 0.1em;
+    z-index: 25; pointer-events: none; display: none;
+  }
   #game-over {
     position: fixed; inset: 0;
     display: none; flex-direction: column;
@@ -126,10 +159,15 @@
 <div id="overlay">
   <h1>TYPOCALYPSE</h1>
   <div class="sub">TYPE TO SURVIVE</div>
+  <div class="diff-row">
+    <button class="diff-btn" data-diff="easy">EASY</button>
+    <button class="diff-btn active" data-diff="normal">NORMAL</button>
+    <button class="diff-btn" data-diff="hard">HARD</button>
+  </div>
   <button class="start-btn" id="btn-start">START GAME</button>
   <div class="controls-hint">
     TYPE THE FALLING WORDS · ESC TO CLEAR · BACKSPACE TO DELETE<br>
-    COMBOS MULTIPLY SCORE · POWER-UPS APPEAR AT LEVEL 2+<br>
+    P PAUSE · M MUTE · COMBOS MULTIPLY SCORE<br>
     <span id="hi-score-display" style="color:rgba(255,200,100,0.3)"></span>
   </div>
   <div class="pretext-badge">POWERED BY PRETEXT · SEGMENT-AWARE PER-GLYPH LAYOUT</div>
@@ -144,6 +182,12 @@
   <button class="start-btn" id="btn-restart">PLAY AGAIN</button>
   <div style="color:rgba(255,255,255,0.12);font-size:10px;margin-top:24px;letter-spacing:0.1em">PRESS ENTER OR SPACE</div>
 </div>
+
+<div id="pause-overlay">
+  <h2>PAUSED</h2>
+  <div class="pause-hint">PRESS P TO RESUME</div>
+</div>
+<div id="mute-indicator">🔇 MUTED</div>
 
 <canvas id="c"></canvas>
 <div id="hud">
@@ -189,6 +233,16 @@ let bgPulse = 0, displayScore = 0, intensity = 0
 let freezeTimer = 0, freezeActive = false
 let wordsMissed = 0, fastestWord = null, fastestWordTime = Infinity
 let wordStartTimes = new Map() // track per-word typing start time
+let paused = false, muted = false
+let levelUpWipe = 0 // level transition wipe effect
+
+// Difficulty presets
+const DIFF = {
+  easy:   { speedMul: 0.6, spawnMul: 1.5, lives: 5, label: 'EASY' },
+  normal: { speedMul: 1.0, spawnMul: 1.0, lives: 3, label: 'NORMAL' },
+  hard:   { speedMul: 1.4, spawnMul: 0.65, lives: 2, label: 'HARD' },
+}
+let difficulty = 'normal'
 
 // Audio
 let audioCtx = null, masterGain = null, reverbNode = null
@@ -599,7 +653,8 @@ function spawnWord() {
   }
   if (!placed) return
 
-  const speed = freezeActive ? 0.1 : 0.25 + level * 0.06 + Math.random() * 0.15
+  const baseSpeed = (0.25 + level * 0.06 + Math.random() * 0.15) * DIFF[difficulty].speedMul
+  const speed = freezeActive ? 0.1 : baseSpeed
   const hue = isPowerUp
     ? (word === 'BOMB' || word === 'NUKE' ? 0 : word === 'HEAL' ? 120 : 180)
     : 25 + Math.random() * 35
@@ -684,6 +739,10 @@ function checkMatch() {
     inputBuffer = ''
     inputEl.textContent = ''
     targetWord = null
+    // Reset all matched states on remaining words
+    for (const w of fallingWords) {
+      if (!w.destroyed) { w.matched = 0; w.prevMatched = 0 }
+    }
   }
 }
 
@@ -745,7 +804,7 @@ function destroyWord(w) {
         break
       }
       case 'HEAL': {
-        lives = Math.min(lives + 1, 5)
+        lives = Math.min(lives + 1, DIFF[difficulty].lives + 2)
         flashAlpha = 0.15; flashHue = 120
         spawnFloatingText(cx, cy - 30, '+1 LIFE', 120, 24)
         break
@@ -764,7 +823,7 @@ function destroyWord(w) {
   if (wordsDestroyed % 10 === 0) {
     level++
     levelEl.textContent = 'LEVEL ' + level
-    flashAlpha = 0.18; flashHue = 120; screenShake = 12
+    flashAlpha = 0.18; flashHue = 120; screenShake = 12; levelUpWipe = 1.0
     spawnFloatingText(W / 2, H / 2, 'LEVEL ' + level, 120, 32)
     playLevelUpSound()
     if (level % 3 === 0) setTimeout(() => spawnBossWord(), 500)
@@ -787,14 +846,15 @@ function wordReachedBottom(w) {
 // ═══════════════ GAME FLOW ═══════════════
 function startGame() {
   initAudio(); startAmbient(); startBGM()
-  gameActive = true
-  score = 0; combo = 0; maxCombo = 0; lives = 3; level = 1
+  gameActive = true; paused = false
+  score = 0; combo = 0; maxCombo = 0; lives = DIFF[difficulty].lives; level = 1
   wordsDestroyed = 0; totalTyped = 0; time = 0; wordsMissed = 0
   fastestWord = null; fastestWordTime = Infinity; wordStartTimes = new Map()
   gameStartTime = performance.now(); spawnTimer = 0; inputBuffer = ''
   particles = []; floatingTexts = []; fallingWords = []; shockwaves = []
   flashAlpha = 0; screenShake = 0; bgPulse = 0; displayScore = 0; intensity = 0
-  targetWord = null; freezeActive = false; freezeTimer = 0
+  targetWord = null; freezeActive = false; freezeTimer = 0; levelUpWipe = 0
+  document.getElementById('pause-overlay').classList.remove('show')
   overlay.classList.add('hidden')
   gameOverScreen.classList.remove('show')
   inputEl.textContent = ''
@@ -828,14 +888,16 @@ function gameOver() {
   ].map(s => `<div class="stat-item"><div class="stat-val">${s.val}</div><div class="stat-label">${s.label}</div></div>`).join('')
   const hiText = isNewHigh ? '<br><span style="color:#ffaa00;font-size:14px;letter-spacing:0.1em">NEW HIGH SCORE!</span>' : '<br>Best: ' + highScore.toLocaleString()
   const fastLine = fastestWord ? '<br><span style="color:rgba(100,200,255,0.6);font-size:11px">FASTEST: ' + fastestDisplay + '</span>' : ''
-  document.getElementById('final-stats').innerHTML = Math.floor(elapsed) + 's survived · ' + totalTyped + ' keystrokes' + fastLine + hiText
+  const diffLabel = '<span style="color:rgba(255,255,255,0.2);font-size:10px;letter-spacing:0.15em">' + DIFF[difficulty].label + ' MODE</span><br>'
+  document.getElementById('final-stats').innerHTML = diffLabel + Math.floor(elapsed) + 's survived · ' + totalTyped + ' keystrokes' + fastLine + hiText
   gameOverScreen.classList.add('show')
 }
 
 function updateHUD() {
   comboEl.textContent = combo > 1 ? combo + 'x COMBO' : ''
   comboEl.className = 'combo' + (combo >= 10 ? ' big' : '')
-  livesEl.textContent = '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, 3 - lives))
+  const maxLives = DIFF[difficulty].lives
+  livesEl.textContent = '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, maxLives - lives))
   if (gameActive && time > 3) {
     const elapsed = (performance.now() - gameStartTime) / 1000
     wpmEl.textContent = Math.round(totalTyped / 5 * (60 / elapsed)) + ' WPM'
@@ -852,10 +914,10 @@ function updateAnimatedScore() {
 
 // ═══════════════ UPDATE ═══════════════
 function update(dt) {
-  if (!gameActive) return
+  if (!gameActive || paused) return
   time += dt
 
-  const spawnRate = Math.max(0.6, 3.0 - Math.log2(level + 1) * 0.8)
+  const spawnRate = Math.max(0.6, 3.0 - Math.log2(level + 1) * 0.8) * DIFF[difficulty].spawnMul
   spawnTimer += dt
   if (spawnTimer >= spawnRate) {
     spawnTimer = 0; spawnWord()
@@ -902,7 +964,7 @@ function update(dt) {
     freezeTimer -= dt
     if (freezeTimer <= 0) {
       freezeActive = false
-      for (const w of fallingWords) { if (!w.destroyed) w.speed = 0.25 + level * 0.06 + Math.random() * 0.1 }
+      for (const w of fallingWords) { if (!w.destroyed) w.speed = (0.25 + level * 0.06 + Math.random() * 0.1) * DIFF[difficulty].speedMul }
     }
   }
 
@@ -912,6 +974,7 @@ function update(dt) {
   if (screenShake > 0) screenShake *= 0.82
   if (flashAlpha > 0) flashAlpha *= 0.88
   if (bgPulse > 0) bgPulse *= 0.94
+  if (levelUpWipe > 0) levelUpWipe *= 0.92
 }
 
 // ═══════════════ RENDER ═══════════════
@@ -1122,6 +1185,23 @@ function render() {
     ctx.fillRect(0, 0, W, H)
   }
 
+  // Level-up wipe effect — horizontal scan line
+  if (levelUpWipe > 0.01) {
+    const wipeY = H * (1 - levelUpWipe)
+    const grad = ctx.createLinearGradient(0, wipeY - 40, 0, wipeY + 40)
+    grad.addColorStop(0, 'transparent')
+    grad.addColorStop(0.4, 'hsla(120, 60%, 60%, ' + (levelUpWipe * 0.15) + ')')
+    grad.addColorStop(0.5, 'hsla(120, 80%, 80%, ' + (levelUpWipe * 0.3) + ')')
+    grad.addColorStop(0.6, 'hsla(120, 60%, 60%, ' + (levelUpWipe * 0.15) + ')')
+    grad.addColorStop(1, 'transparent')
+    ctx.fillStyle = grad; ctx.fillRect(0, wipeY - 40, W, 80)
+  }
+
+  // Pause tint
+  if (paused) {
+    ctx.fillStyle = 'rgba(6,6,12,0.4)'; ctx.fillRect(0, 0, W, H)
+  }
+
   // Input area
   if (gameActive) {
     const ig = ctx.createRadialGradient(W / 2, H - 40, 0, W / 2, H - 40, 200)
@@ -1157,6 +1237,22 @@ function loop(now) {
 
 // ═══════════════ INPUT ═══════════════
 document.addEventListener('keydown', e => {
+  // Pause toggle
+  if (e.key === 'p' || e.key === 'P') {
+    if (gameActive) {
+      paused = !paused
+      document.getElementById('pause-overlay').classList.toggle('show', paused)
+    }
+    return
+  }
+  // Mute toggle
+  if (e.key === 'm' || e.key === 'M') {
+    muted = !muted
+    if (masterGain) masterGain.gain.value = muted ? 0 : 0.7
+    document.getElementById('mute-indicator').style.display = muted ? 'block' : 'none'
+    return
+  }
+  if (paused) return
   if (!gameActive) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startGame(); focusInput() }
     return
@@ -1201,15 +1297,31 @@ hiddenInput.addEventListener('input', () => {
   hiddenInput.value = ''
 })
 
+// Difficulty selection
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'))
+    btn.classList.add('active')
+    difficulty = btn.dataset.diff
+  })
+})
+
 document.getElementById('btn-start').addEventListener('click', () => { startGame(); focusInput() })
 document.getElementById('btn-restart').addEventListener('click', () => { startGame(); focusInput() })
 canvas.addEventListener('click', () => { if (gameActive) focusInput() })
+// Mobile: also focus on any touch
+canvas.addEventListener('touchstart', (e) => {
+  if (gameActive) { e.preventDefault(); focusInput() }
+}, { passive: false })
 window.addEventListener('resize', resize)
 
 // ═══════════════ INIT ═══════════════
 resize()
 requestAnimationFrame(loop)
 if (highScore > 0) document.getElementById('hi-score-display').textContent = 'BEST: ' + highScore.toLocaleString()
+// Auto-focus for mobile
+document.getElementById('btn-start').addEventListener('touchend', () => { setTimeout(focusInput, 100) })
+document.getElementById('btn-restart').addEventListener('touchend', () => { setTimeout(focusInput, 100) })
 
 </script>
 </body>
