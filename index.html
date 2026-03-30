@@ -2,20 +2,22 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>TYPOCALYPSE — Type to Survive</title>
 <meta property="og:title" content="TYPOCALYPSE — Type to Survive">
-<meta property="og:description" content="Words fall from the sky. Type them to destroy them. How long can you survive?">
+<meta property="og:description" content="Words fall from the sky. Type them to destroy them. How long can you survive the typocalypse?">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700;800&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: #08080f;
+    background: #06060c;
     color: #e0e0e0;
     font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
     overflow: hidden;
     height: 100vh;
+    touch-action: manipulation;
   }
   canvas { display: block; width: 100%; height: 100%; }
 
@@ -24,37 +26,55 @@
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     z-index: 100;
-    background: rgba(8,8,15,0.97);
-    transition: opacity 0.5s;
+    background: rgba(6,6,12,0.98);
+    transition: opacity 0.6s;
   }
   #overlay.hidden { opacity: 0; pointer-events: none; }
   #overlay h1 {
-    font-size: clamp(32px, 6vw, 64px);
-    font-weight: 900;
-    letter-spacing: 0.15em;
-    margin-bottom: 8px;
-    background: linear-gradient(135deg, #ff4444, #ff8844, #ffcc44);
+    font-size: clamp(36px, 7vw, 72px);
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, #ff3333, #ff6600, #ffaa00, #ff3333);
+    background-size: 300% 300%;
+    animation: titleShift 3s ease infinite;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    text-shadow: 0 0 60px rgba(255,100,0,0.2);
   }
-  #overlay .sub { color: rgba(255,255,255,0.3); font-size: 14px; margin-bottom: 40px; letter-spacing: 0.2em; }
+  @keyframes titleShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  #overlay .sub { color: rgba(255,255,255,0.25); font-size: 13px; margin-bottom: 48px; letter-spacing: 0.25em; }
   .start-btn {
-    padding: 18px 50px;
-    border: 1px solid rgba(255,100,50,0.3);
-    border-radius: 4px;
-    background: rgba(255,100,50,0.06);
-    color: rgba(255,200,150,0.8);
-    font-size: 16px;
+    padding: 20px 56px;
+    border: 1px solid rgba(255,100,50,0.25);
+    border-radius: 2px;
+    background: rgba(255,100,50,0.04);
+    color: rgba(255,200,150,0.7);
+    font-size: 15px;
     font-family: inherit;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s;
-    letter-spacing: 0.1em;
+    transition: all 0.3s;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
   }
   .start-btn:hover {
-    background: rgba(255,100,50,0.15);
+    background: rgba(255,100,50,0.12);
     border-color: rgba(255,100,50,0.5);
-    color: white;
+    color: #fff;
+    transform: scale(1.02);
+  }
+  #overlay .controls-hint {
+    color: rgba(255,255,255,0.15);
+    font-size: 11px;
+    margin-top: 32px;
+    letter-spacing: 0.1em;
+    text-align: center;
+    line-height: 1.8;
   }
 
   #game-over {
@@ -62,62 +82,78 @@
     display: none; flex-direction: column;
     align-items: center; justify-content: center;
     z-index: 100;
-    background: rgba(8,8,15,0.95);
+    background: rgba(6,6,12,0.96);
   }
   #game-over.show { display: flex; }
   #game-over h2 {
-    font-size: 48px; font-weight: 900;
-    color: #ff4444; margin-bottom: 16px;
-    letter-spacing: 0.1em;
+    font-size: 52px; font-weight: 800;
+    color: #ff3333; margin-bottom: 20px;
+    letter-spacing: 0.12em;
   }
   #game-over .final-score {
-    font-size: 72px; font-weight: 200;
-    color: #ffcc44; margin-bottom: 8px;
+    font-size: 80px; font-weight: 300;
+    color: #ffaa00; margin-bottom: 4px;
+  }
+  #game-over .final-label {
+    color: rgba(255,255,255,0.2);
+    font-size: 11px; letter-spacing: 0.2em;
+    margin-bottom: 24px;
   }
   #game-over .final-stats {
-    color: rgba(255,255,255,0.4);
-    font-size: 13px; margin-bottom: 40px;
-    text-align: center; line-height: 1.8;
+    color: rgba(255,255,255,0.35);
+    font-size: 12px; margin-bottom: 40px;
+    text-align: center; line-height: 2;
+  }
+  #game-over .stats-row {
+    display: flex; gap: 32px; margin-bottom: 32px;
+  }
+  #game-over .stat-item {
+    text-align: center;
+  }
+  #game-over .stat-val {
+    font-size: 28px; font-weight: 700;
+    color: rgba(255,200,100,0.8);
+  }
+  #game-over .stat-label {
+    font-size: 10px; letter-spacing: 0.15em;
+    color: rgba(255,255,255,0.2); margin-top: 4px;
   }
 
   #hud {
     position: fixed; top: 0; left: 0; right: 0;
-    display: flex; justify-content: space-between;
-    padding: 16px 24px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 20px 28px;
     z-index: 20; pointer-events: none;
     font-size: 13px;
   }
-  #hud .score { color: #ffcc44; font-size: 20px; font-weight: 700; }
-  #hud .combo { color: #ff8844; font-size: 14px; }
-  #hud .level { color: rgba(255,255,255,0.4); }
-  #hud .lives { color: #ff4444; font-size: 18px; letter-spacing: 4px; }
+  #hud .score { color: #ffaa00; font-size: 24px; font-weight: 800; letter-spacing: 0.05em; }
+  #hud .combo { color: #ff6600; font-size: 15px; font-weight: 700; margin-top: 4px; transition: all 0.15s; }
+  #hud .combo.big { font-size: 20px; color: #ff3333; }
+  #hud .level { color: rgba(255,255,255,0.3); font-size: 12px; letter-spacing: 0.15em; }
+  #hud .lives { color: #ff3333; font-size: 20px; letter-spacing: 4px; }
+  #hud .wpm { color: rgba(255,255,255,0.2); font-size: 11px; margin-top: 6px; }
 
   #input-display {
     position: fixed;
-    bottom: 40px;
+    bottom: 44px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 20;
-    font-size: 28px;
+    font-size: 30px;
     font-weight: 700;
     color: rgba(255,200,100,0.9);
     text-align: center;
     min-width: 200px;
-    border-bottom: 2px solid rgba(255,200,100,0.3);
-    padding: 8px 16px;
-    letter-spacing: 0.05em;
+    padding: 10px 20px;
+    letter-spacing: 0.06em;
     pointer-events: none;
   }
-
-  /* Death zone line */
-  #deathzone {
-    position: fixed;
-    bottom: 100px;
-    left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255,50,50,0.3), transparent);
-    z-index: 10;
-    pointer-events: none;
+  #input-display::after {
+    content: '';
+    display: block;
+    height: 2px;
+    margin-top: 4px;
+    background: linear-gradient(90deg, transparent, rgba(255,200,100,0.4), transparent);
   }
 </style>
 </head>
@@ -126,14 +162,20 @@
 <div id="overlay">
   <h1>TYPOCALYPSE</h1>
   <div class="sub">TYPE TO SURVIVE</div>
-  <button class="start-btn" id="btn-start">START</button>
+  <button class="start-btn" id="btn-start">START GAME</button>
+  <div class="controls-hint">
+    TYPE THE FALLING WORDS · ESC TO CLEAR · BACKSPACE TO DELETE<br>
+    한글 + ENGLISH · COMBOS MULTIPLY SCORE
+  </div>
 </div>
 
 <div id="game-over">
   <h2>GAME OVER</h2>
   <div class="final-score" id="final-score">0</div>
+  <div class="final-label">POINTS</div>
+  <div class="stats-row" id="stats-row"></div>
   <div class="final-stats" id="final-stats"></div>
-  <button class="start-btn" id="btn-restart">RETRY</button>
+  <button class="start-btn" id="btn-restart">PLAY AGAIN</button>
 </div>
 
 <canvas id="c"></canvas>
@@ -144,16 +186,15 @@
   </div>
   <div style="text-align:center">
     <div class="level" id="level">LEVEL 1</div>
+    <div class="wpm" id="wpm"></div>
   </div>
   <div style="text-align:right">
     <div class="lives" id="lives">♥♥♥</div>
   </div>
 </div>
 <div id="input-display"></div>
-<div id="deathzone"></div>
 
 <script type="module">
-import { prepareWithSegments, layoutNextLine } from 'https://esm.sh/@chenglou/pretext@0.0.3'
 
 const canvas = document.getElementById('c')
 const ctx = canvas.getContext('2d')
@@ -161,6 +202,7 @@ const scoreEl = document.getElementById('score')
 const comboEl = document.getElementById('combo')
 const levelEl = document.getElementById('level')
 const livesEl = document.getElementById('lives')
+const wpmEl = document.getElementById('wpm')
 const inputEl = document.getElementById('input-display')
 const overlay = document.getElementById('overlay')
 const gameOverScreen = document.getElementById('game-over')
@@ -176,44 +218,91 @@ let level = 1
 let wordsDestroyed = 0
 let totalTyped = 0
 let time = 0
+let gameStartTime = 0
 let spawnTimer = 0
 let inputBuffer = ''
 let particles = []
+let floatingTexts = []   // score popups
 let fallingWords = []
 let screenShake = 0
 let flashAlpha = 0
+let flashHue = 0    // colored flashes
+let targetWord = null  // currently targeted word (visual link)
+let stars = []
+let bgPulse = 0       // background pulse intensity
 
 // Audio
 let audioCtx = null
+let masterGain = null
+let reverbNode = null
+let ambientRunning = false
 
-// Word pools
+// Word pools — more variety
 const wordsKR = [
-  '불', '물', '빛', '별', '달', '해', '눈', '숨', '꿈', '밤',
+  '불', '물', '빛', '별', '달', '해', '눈', '숨', '꿈', '밤', '길', '힘', '삶',
   '하늘', '바다', '우주', '세계', '시간', '인생', '마음', '사랑', '지구', '미래',
-  '소리', '파동', '진동', '공명', '코드', '타입', '파괴', '생존',
+  '소리', '파동', '진동', '공명', '코드', '타입', '파괴', '생존', '전투', '폭풍',
   '타이핑', '프로그래밍', '알고리즘', '컴퓨터', '인터넷', '데이터',
   '시뮬레이션', '프레임워크', '아키텍처',
 ]
 const wordsEN = [
-  'fire', 'code', 'wave', 'star', 'moon', 'rain', 'void', 'flux',
-  'light', 'sound', 'break', 'crash', 'pulse', 'storm', 'drift',
-  'typing', 'system', 'cosmic', 'matrix', 'neural', 'signal',
-  'quantum', 'entropy', 'gravity', 'photon', 'syntax',
-  'resonance', 'algorithm', 'frequency', 'terminal',
+  'fire', 'code', 'wave', 'star', 'moon', 'rain', 'void', 'flux', 'hack', 'byte',
+  'light', 'sound', 'break', 'crash', 'pulse', 'storm', 'drift', 'blaze', 'chaos',
+  'typing', 'system', 'cosmic', 'matrix', 'neural', 'signal', 'plasma', 'vortex',
+  'quantum', 'entropy', 'gravity', 'photon', 'syntax', 'cipher', 'nebula',
+  'resonance', 'algorithm', 'frequency', 'terminal', 'override',
   'apocalypse', 'destruction', 'simulation',
 ]
 
 function getWordPool() {
-  // Mix based on level
-  const kr = wordsKR.filter(w => w.length <= 1 + Math.floor(level / 2))
-  const en = wordsEN.filter(w => w.length <= 3 + level)
+  const maxLenKR = Math.min(1 + Math.floor(level / 2), 7)
+  const maxLenEN = Math.min(3 + level, 12)
+  const kr = wordsKR.filter(w => w.length <= maxLenKR)
+  const en = wordsEN.filter(w => w.length <= maxLenEN)
   return [...kr, ...en]
 }
 
-// ═══════════════ AUDIO ═══════════════
+// ═══════════════ STARS BACKGROUND ═══════════════
+function initStars() {
+  stars = []
+  for (let i = 0; i < 120; i++) {
+    stars.push({
+      x: Math.random() * 2000,
+      y: Math.random() * 2000,
+      size: Math.random() * 1.5 + 0.3,
+      speed: Math.random() * 0.15 + 0.02,
+      brightness: Math.random() * 0.4 + 0.1,
+      twinkleSpeed: Math.random() * 2 + 1,
+    })
+  }
+}
+
+// ═══════════════ AUDIO ENGINE ═══════════════
 function initAudio() {
   if (audioCtx) return
   audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+
+  // Master gain
+  masterGain = audioCtx.createGain()
+  masterGain.gain.value = 0.7
+  masterGain.connect(audioCtx.destination)
+
+  // Simple reverb
+  const reverbLen = 2.0
+  const sampleRate = audioCtx.sampleRate
+  const reverbBuf = audioCtx.createBuffer(2, sampleRate * reverbLen, sampleRate)
+  for (let ch = 0; ch < 2; ch++) {
+    const d = reverbBuf.getChannelData(ch)
+    for (let i = 0; i < d.length; i++) {
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.5)
+    }
+  }
+  reverbNode = audioCtx.createConvolver()
+  reverbNode.buffer = reverbBuf
+  const reverbGain = audioCtx.createGain()
+  reverbGain.gain.value = 0.15
+  reverbNode.connect(reverbGain)
+  reverbGain.connect(masterGain)
 }
 
 function playTypeSound() {
@@ -222,141 +311,292 @@ function playTypeSound() {
   const osc = audioCtx.createOscillator()
   const g = audioCtx.createGain()
   osc.type = 'sine'
-  osc.frequency.setValueAtTime(800 + Math.random() * 400, now)
-  osc.frequency.exponentialRampToValueAtTime(400, now + 0.05)
-  g.gain.setValueAtTime(0.08, now)
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.05)
+  const freq = 600 + Math.random() * 600
+  osc.frequency.setValueAtTime(freq, now)
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.6, now + 0.04)
+  g.gain.setValueAtTime(0.06, now)
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.04)
   osc.connect(g)
-  g.connect(audioCtx.destination)
+  g.connect(masterGain)
+  osc.connect(reverbNode)
   osc.start(now)
-  osc.stop(now + 0.06)
+  osc.stop(now + 0.05)
 }
 
-function playDestroySound(pitch) {
+function playDestroySound(wordLen) {
   if (!audioCtx) return
   const now = audioCtx.currentTime
-  // Punchy hit
-  const osc = audioCtx.createOscillator()
-  const g = audioCtx.createGain()
-  osc.type = 'square'
-  osc.frequency.setValueAtTime(200 + pitch * 100, now)
-  osc.frequency.exponentialRampToValueAtTime(60, now + 0.15)
-  g.gain.setValueAtTime(0.2, now)
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.15)
-  osc.connect(g)
-  g.connect(audioCtx.destination)
-  osc.start(now)
-  osc.stop(now + 0.2)
-  // Noise burst
-  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.08, audioCtx.sampleRate)
-  const d = buf.getChannelData(0)
-  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
-  const n = audioCtx.createBufferSource()
-  n.buffer = buf
-  const ng = audioCtx.createGain()
-  ng.gain.setValueAtTime(0.1, now)
-  ng.gain.exponentialRampToValueAtTime(0.001, now + 0.08)
-  const hpf = audioCtx.createBiquadFilter()
-  hpf.type = 'highpass'
-  hpf.frequency.value = 2000
-  n.connect(hpf)
-  hpf.connect(ng)
-  ng.connect(audioCtx.destination)
-  n.start(now)
-  n.stop(now + 0.1)
+
+  // 808-style impact
+  const kick = audioCtx.createOscillator()
+  const kg = audioCtx.createGain()
+  kick.type = 'sine'
+  kick.frequency.setValueAtTime(160 + wordLen * 20, now)
+  kick.frequency.exponentialRampToValueAtTime(35, now + 0.2)
+  kg.gain.setValueAtTime(0.3, now)
+  kg.gain.exponentialRampToValueAtTime(0.001, now + 0.25)
+  kick.connect(kg)
+  kg.connect(masterGain)
+  kick.start(now)
+  kick.stop(now + 0.3)
+
+  // Click transient
+  const click = audioCtx.createOscillator()
+  const cg = audioCtx.createGain()
+  click.type = 'square'
+  click.frequency.setValueAtTime(800 + wordLen * 100, now)
+  click.frequency.exponentialRampToValueAtTime(200, now + 0.02)
+  cg.gain.setValueAtTime(0.1, now)
+  cg.gain.exponentialRampToValueAtTime(0.001, now + 0.03)
+  click.connect(cg)
+  cg.connect(masterGain)
+  click.connect(reverbNode)
+  click.start(now)
+  click.stop(now + 0.04)
+
+  // Shimmer (triangle harmonics)
+  for (let i = 0; i < 3; i++) {
+    const s = audioCtx.createOscillator()
+    const sg = audioCtx.createGain()
+    s.type = 'triangle'
+    s.frequency.value = (300 + wordLen * 50) * (1 + i * 0.5)
+    sg.gain.setValueAtTime(0, now + i * 0.02)
+    sg.gain.linearRampToValueAtTime(0.04, now + i * 0.02 + 0.01)
+    sg.gain.exponentialRampToValueAtTime(0.001, now + i * 0.02 + 0.15)
+    s.connect(sg)
+    sg.connect(masterGain)
+    s.connect(reverbNode)
+    s.start(now + i * 0.02)
+    s.stop(now + i * 0.02 + 0.2)
+  }
 }
 
 function playDamageSound() {
   if (!audioCtx) return
   const now = audioCtx.currentTime
+  // Low rumble
   const osc = audioCtx.createOscillator()
   const g = audioCtx.createGain()
   osc.type = 'sawtooth'
-  osc.frequency.setValueAtTime(150, now)
-  osc.frequency.exponentialRampToValueAtTime(40, now + 0.4)
-  g.gain.setValueAtTime(0.25, now)
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.4)
+  osc.frequency.setValueAtTime(120, now)
+  osc.frequency.exponentialRampToValueAtTime(30, now + 0.5)
+  g.gain.setValueAtTime(0.2, now)
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.5)
+
+  // Distortion
+  const dist = audioCtx.createWaveShaperFunction ? null : null
   osc.connect(g)
-  g.connect(audioCtx.destination)
+  g.connect(masterGain)
   osc.start(now)
-  osc.stop(now + 0.5)
+  osc.stop(now + 0.6)
+
+  // Noise hit
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.15, audioCtx.sampleRate)
+  const d = buf.getChannelData(0)
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5)
+  const n = audioCtx.createBufferSource()
+  n.buffer = buf
+  const ng = audioCtx.createGain()
+  ng.gain.setValueAtTime(0.15, now)
+  ng.gain.exponentialRampToValueAtTime(0.001, now + 0.15)
+  n.connect(ng)
+  ng.connect(masterGain)
+  n.start(now)
+  n.stop(now + 0.2)
 }
 
 function playComboSound(comboLevel) {
   if (!audioCtx) return
   const now = audioCtx.currentTime
-  // Rising arpeggio based on combo
-  const baseFreq = 300 + comboLevel * 50
-  for (let i = 0; i < Math.min(comboLevel, 5); i++) {
+  const scale = [0, 2, 4, 5, 7, 9, 11, 12] // major scale semitones
+  const baseFreq = 440
+  const count = Math.min(comboLevel, 6)
+  for (let i = 0; i < count; i++) {
     const osc = audioCtx.createOscillator()
     const g = audioCtx.createGain()
     osc.type = 'sine'
-    osc.frequency.value = baseFreq * (1 + i * 0.25)
-    g.gain.setValueAtTime(0, now + i * 0.04)
-    g.gain.linearRampToValueAtTime(0.06, now + i * 0.04 + 0.01)
-    g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.15)
+    const semitone = scale[i % scale.length] + Math.floor(i / scale.length) * 12
+    osc.frequency.value = baseFreq * Math.pow(2, semitone / 12)
+    const t = now + i * 0.035
+    g.gain.setValueAtTime(0, t)
+    g.gain.linearRampToValueAtTime(0.05, t + 0.008)
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12)
     osc.connect(g)
-    g.connect(audioCtx.destination)
-    osc.start(now + i * 0.04)
-    osc.stop(now + i * 0.04 + 0.2)
+    g.connect(masterGain)
+    osc.connect(reverbNode)
+    osc.start(t)
+    osc.stop(t + 0.15)
   }
+}
+
+function playLevelUpSound() {
+  if (!audioCtx) return
+  const now = audioCtx.currentTime
+  const notes = [523.25, 659.25, 783.99, 1046.50] // C5 E5 G5 C6
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator()
+    const g = audioCtx.createGain()
+    osc.type = 'triangle'
+    osc.frequency.value = freq
+    const t = now + i * 0.08
+    g.gain.setValueAtTime(0, t)
+    g.gain.linearRampToValueAtTime(0.08, t + 0.02)
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3)
+    osc.connect(g)
+    g.connect(masterGain)
+    osc.connect(reverbNode)
+    osc.start(t)
+    osc.stop(t + 0.35)
+  })
+}
+
+// Ambient drone — low background
+function startAmbient() {
+  if (!audioCtx || ambientRunning) return
+  ambientRunning = true
+
+  const o1 = audioCtx.createOscillator()
+  const o2 = audioCtx.createOscillator()
+  const g = audioCtx.createGain()
+  const lp = audioCtx.createBiquadFilter()
+  o1.type = 'sine'
+  o2.type = 'sine'
+  o1.frequency.value = 55
+  o2.frequency.value = 55.3
+  lp.type = 'lowpass'
+  lp.frequency.value = 200
+  g.gain.value = 0.03
+  o1.connect(lp)
+  o2.connect(lp)
+  lp.connect(g)
+  g.connect(masterGain)
+  o1.start()
+  o2.start()
+
+  // Slowly modulate
+  setInterval(() => {
+    if (!gameActive) { g.gain.value = 0.01; return }
+    const targetF = 50 + level * 5
+    o1.frequency.setTargetAtTime(targetF, audioCtx.currentTime, 2)
+    o2.frequency.setTargetAtTime(targetF + 0.3, audioCtx.currentTime, 2)
+    g.gain.setTargetAtTime(0.02 + level * 0.003, audioCtx.currentTime, 1)
+  }, 3000)
+}
+
+// ═══════════════ FLOATING TEXT (score popups) ═══════════════
+function spawnFloatingText(x, y, text, hue, size) {
+  floatingTexts.push({
+    x, y, text, hue,
+    size: size || 18,
+    life: 50,
+    maxLife: 50,
+    vy: -2.5,
+  })
 }
 
 // ═══════════════ PARTICLES ═══════════════
 function spawnExplosion(x, y, hue, count) {
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2
-    const speed = 2 + Math.random() * 6
+    const speed = 1.5 + Math.random() * 8
     particles.push({
       x, y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - 2,
-      life: 30 + Math.random() * 30,
+      life: 25 + Math.random() * 35,
       maxLife: 60,
-      hue: hue + Math.random() * 40 - 20,
-      size: 1.5 + Math.random() * 3,
+      hue: hue + Math.random() * 50 - 25,
+      size: 1 + Math.random() * 4,
       type: 'circle'
     })
   }
 }
 
+// Ring explosion (expanding circle of particles)
+function spawnRing(x, y, hue, radius, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2
+    const speed = 3 + Math.random() * 2
+    particles.push({
+      x: x + Math.cos(angle) * radius,
+      y: y + Math.sin(angle) * radius,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 20 + Math.random() * 15,
+      maxLife: 35,
+      hue: hue + Math.random() * 20,
+      size: 1.5 + Math.random() * 2,
+      type: 'circle'
+    })
+  }
+}
+
+// Sparkle trail
+function spawnSparkle(x, y, hue) {
+  particles.push({
+    x: x + (Math.random() - 0.5) * 10,
+    y: y + (Math.random() - 0.5) * 10,
+    vx: (Math.random() - 0.5) * 0.5,
+    vy: -Math.random() * 1.5 - 0.5,
+    life: 15 + Math.random() * 15,
+    maxLife: 30,
+    hue,
+    size: 1 + Math.random() * 2,
+    type: 'sparkle'
+  })
+}
+
 function spawnLetterParticles(x, y, text, hue) {
   const chars = [...text]
   for (let i = 0; i < chars.length; i++) {
-    const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI
-    const speed = 3 + Math.random() * 5
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.2
+    const speed = 4 + Math.random() * 6
     particles.push({
-      x: x + i * 14,
+      x: x + i * 16,
       y,
       vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
-      vy: Math.sin(angle) * speed - 3,
-      life: 40 + Math.random() * 20,
+      vy: Math.sin(angle) * speed - 4,
+      life: 35 + Math.random() * 25,
       maxLife: 60,
       hue,
-      size: 14,
+      size: 16,
       type: 'letter',
       char: chars[i],
       rotation: 0,
-      rotSpeed: (Math.random() - 0.5) * 0.3
+      rotSpeed: (Math.random() - 0.5) * 0.4
     })
   }
+}
+
+// ═══════════════ SHOCKWAVE EFFECT ═══════════════
+let shockwaves = []
+function spawnShockwave(x, y, hue) {
+  shockwaves.push({
+    x, y, hue,
+    radius: 0,
+    maxRadius: 80 + combo * 8,
+    life: 20,
+    maxLife: 20,
+  })
 }
 
 // ═══════════════ WORD SPAWNING ═══════════════
 function spawnWord() {
   const pool = getWordPool()
   const word = pool[Math.floor(Math.random() * pool.length)]
-  const fontSize = 20 + Math.floor(Math.random() * 4) * 2
-  const font = fontSize + 'px "JetBrains Mono", "Fira Code", monospace'
+  const fontSize = 18 + Math.floor(Math.random() * 4) * 2
+  const font = 'bold ' + fontSize + 'px "JetBrains Mono", monospace'
 
   ctx.font = font
-  const textW = ctx.measureText(word).width
-  const x = Math.random() * (W - textW - 60) + 30
-  const speed = 0.3 + level * 0.08 + Math.random() * 0.2
+  const metrics = ctx.measureText(word)
+  const textW = metrics.width
+  const margin = 40
+  const x = margin + Math.random() * Math.max(10, W - textW - margin * 2)
+  const speed = 0.25 + level * 0.07 + Math.random() * 0.2
 
   // Assign a hue based on language
   const isKR = /[\u3131-\uD79D]/.test(word)
-  const hue = isKR ? 200 + Math.random() * 40 : 30 + Math.random() * 30
+  const hue = isKR ? 200 + Math.random() * 50 : 25 + Math.random() * 35
 
   fallingWords.push({
     text: word,
@@ -366,24 +606,28 @@ function spawnWord() {
     fontSize,
     width: textW,
     hue,
-    alpha: 0, // fade in
-    matched: 0, // how many chars matched from start
+    alpha: 0,
+    matched: 0,
     destroyed: false,
     points: word.length * 10 * level,
+    spawnTime: time,
+    warningPulse: 0,
   })
 }
 
 // ═══════════════ INPUT MATCHING ═══════════════
 function checkMatch() {
-  if (inputBuffer.length === 0) return
+  if (inputBuffer.length === 0) {
+    targetWord = null
+    for (const w of fallingWords) w.matched = 0
+    return
+  }
 
-  // Find best matching word
   let bestMatch = null
   let bestScore = 0
 
   for (const w of fallingWords) {
     if (w.destroyed) continue
-    // Check if input matches the beginning of the word
     if (w.text.startsWith(inputBuffer)) {
       const matchScore = inputBuffer.length / w.text.length
       if (matchScore > bestScore) {
@@ -403,11 +647,14 @@ function checkMatch() {
     }
   }
 
+  // Update target word
+  targetWord = bestMatch
+
   if (bestMatch && inputBuffer === bestMatch.text) {
-    // DESTROYED!
     destroyWord(bestMatch)
     inputBuffer = ''
     inputEl.textContent = ''
+    targetWord = null
   }
 }
 
@@ -422,21 +669,35 @@ function destroyWord(w) {
   const pts = Math.floor(w.points * multiplier)
   score += pts
 
-  // Effects
+  // Effects — BIGGER!
   const cx = w.x + w.width / 2
   const cy = w.y
-  spawnExplosion(cx, cy, w.hue, 12 + combo * 2)
+  const baseCount = 15 + Math.min(combo * 3, 30)
+  spawnExplosion(cx, cy, w.hue, baseCount)
+  spawnRing(cx, cy, w.hue, 5, 12)
   spawnLetterParticles(w.x, w.y, w.text, w.hue)
+  spawnShockwave(cx, cy, w.hue)
+
+  // Score popup
+  const comboText = combo > 1 ? ' x' + combo : ''
+  spawnFloatingText(cx, cy - 10, '+' + pts + comboText, w.hue, combo > 5 ? 24 : 18)
+
   playDestroySound(w.text.length)
   if (combo > 1) playComboSound(combo)
-  screenShake = 3 + Math.min(combo, 10)
-  flashAlpha = 0.08
+  screenShake = 4 + Math.min(combo * 1.5, 15)
+  flashAlpha = 0.06 + Math.min(combo * 0.01, 0.1)
+  flashHue = w.hue
+  bgPulse = 0.3 + Math.min(combo * 0.05, 0.5)
 
   // Level up every 10 words
   if (wordsDestroyed % 10 === 0) {
     level++
     levelEl.textContent = 'LEVEL ' + level
-    flashAlpha = 0.15
+    flashAlpha = 0.18
+    flashHue = 120  // green flash for level up
+    screenShake = 12
+    spawnFloatingText(W / 2, H / 2, 'LEVEL ' + level, 120, 32)
+    playLevelUpSound()
   }
 
   updateHUD()
@@ -445,12 +706,15 @@ function destroyWord(w) {
 function wordReachedBottom(w) {
   lives--
   combo = 0
-  screenShake = 15
-  flashAlpha = 0.2
+  screenShake = 20
+  flashAlpha = 0.25
+  flashHue = 0  // red flash
   playDamageSound()
 
-  // Red particles
-  spawnExplosion(w.x + w.width / 2, H - 100, 0, 20)
+  // Red explosion
+  spawnExplosion(w.x + w.width / 2, H - 100, 0, 30)
+  spawnShockwave(w.x + w.width / 2, H - 100, 0)
+  spawnFloatingText(w.x + w.width / 2, H - 130, 'MISS', 0, 22)
 
   if (lives <= 0) {
     gameOver()
@@ -462,6 +726,7 @@ function wordReachedBottom(w) {
 // ═══════════════ GAME FLOW ═══════════════
 function startGame() {
   initAudio()
+  startAmbient()
   gameActive = true
   score = 0
   combo = 0
@@ -471,12 +736,17 @@ function startGame() {
   wordsDestroyed = 0
   totalTyped = 0
   time = 0
+  gameStartTime = performance.now()
   spawnTimer = 0
   inputBuffer = ''
   particles = []
+  floatingTexts = []
   fallingWords = []
+  shockwaves = []
   flashAlpha = 0
   screenShake = 0
+  bgPulse = 0
+  targetWord = null
 
   overlay.classList.add('hidden')
   gameOverScreen.classList.remove('show')
@@ -486,38 +756,59 @@ function startGame() {
 
 function gameOver() {
   gameActive = false
-  document.getElementById('final-score').textContent = score
+  const elapsed = (performance.now() - gameStartTime) / 1000
+  const wpm = elapsed > 5 ? Math.round(totalTyped / 5 * (60 / elapsed)) : 0
+
+  document.getElementById('final-score').textContent = score.toLocaleString()
+
+  // Stats row
+  const statsRow = document.getElementById('stats-row')
+  statsRow.innerHTML = [
+    { val: level, label: 'LEVEL' },
+    { val: wordsDestroyed, label: 'WORDS' },
+    { val: maxCombo + 'x', label: 'MAX COMBO' },
+    { val: wpm, label: 'WPM' },
+  ].map(s => `<div class="stat-item"><div class="stat-val">${s.val}</div><div class="stat-label">${s.label}</div></div>`).join('')
+
   document.getElementById('final-stats').innerHTML =
-    'Level ' + level + ' · ' + wordsDestroyed + ' words destroyed<br>' +
-    'Max combo: ' + maxCombo + 'x · ' + totalTyped + ' keystrokes'
+    Math.floor(elapsed) + 's survived · ' + totalTyped + ' keystrokes'
   gameOverScreen.classList.add('show')
 }
 
 function updateHUD() {
-  scoreEl.textContent = score
-  comboEl.textContent = combo > 1 ? combo + 'x COMBO' : ''
+  scoreEl.textContent = score.toLocaleString()
+  const comboText = combo > 1 ? combo + 'x COMBO' : ''
+  comboEl.textContent = comboText
+  comboEl.className = 'combo' + (combo >= 10 ? ' big' : '')
   const hearts = '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, 3 - lives))
   livesEl.textContent = hearts
+
+  // WPM
+  if (gameActive && time > 3) {
+    const elapsed = (performance.now() - gameStartTime) / 1000
+    const wpm = Math.round(totalTyped / 5 * (60 / elapsed))
+    wpmEl.textContent = wpm + ' WPM'
+  }
 }
 
 // ═══════════════ UPDATE ═══════════════
-function update() {
+function update(dt) {
   if (!gameActive) return
 
-  time += 0.016
+  time += dt
 
   // Spawn words
-  const spawnRate = Math.max(0.8, 3.0 - level * 0.15)
-  spawnTimer += 0.016
+  const spawnRate = Math.max(0.7, 2.8 - level * 0.14)
+  spawnTimer += dt
   if (spawnTimer >= spawnRate) {
     spawnTimer = 0
     spawnWord()
-    // Extra word at higher levels
     if (level >= 5 && Math.random() < 0.3) spawnWord()
-    if (level >= 10 && Math.random() < 0.3) spawnWord()
+    if (level >= 10 && Math.random() < 0.4) spawnWord()
   }
 
   // Update falling words
+  const dzY = H - 110
   for (let i = fallingWords.length - 1; i >= 0; i--) {
     const w = fallingWords[i]
     if (w.destroyed) {
@@ -525,10 +816,21 @@ function update() {
       continue
     }
     w.y += w.speed
-    w.alpha = Math.min(1, w.alpha + 0.05)
+    w.alpha = Math.min(1, w.alpha + 0.04)
+
+    // Warning pulse when approaching death zone
+    const proximity = w.y / dzY
+    if (proximity > 0.7) {
+      w.warningPulse = (proximity - 0.7) / 0.3
+    }
+
+    // Sparkle on matched words
+    if (w.matched > 0 && Math.random() < 0.15) {
+      spawnSparkle(w.x + Math.random() * w.width, w.y, w.hue)
+    }
 
     // Reached death zone
-    if (w.y > H - 110) {
+    if (w.y > dzY) {
       wordReachedBottom(w)
       fallingWords.splice(i, 1)
     }
@@ -539,16 +841,34 @@ function update() {
     const p = particles[i]
     p.x += p.vx
     p.y += p.vy
-    p.vy += 0.12 // gravity
+    p.vy += 0.1
     p.vx *= 0.98
     p.life--
     if (p.type === 'letter') p.rotation += p.rotSpeed
     if (p.life <= 0) particles.splice(i, 1)
   }
 
-  // Screen shake decay
-  if (screenShake > 0) screenShake *= 0.85
-  if (flashAlpha > 0) flashAlpha *= 0.9
+  // Update floating texts
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i]
+    ft.y += ft.vy
+    ft.vy *= 0.96
+    ft.life--
+    if (ft.life <= 0) floatingTexts.splice(i, 1)
+  }
+
+  // Update shockwaves
+  for (let i = shockwaves.length - 1; i >= 0; i--) {
+    const sw = shockwaves[i]
+    sw.radius += (sw.maxRadius - sw.radius) * 0.15
+    sw.life--
+    if (sw.life <= 0) shockwaves.splice(i, 1)
+  }
+
+  // Decay
+  if (screenShake > 0) screenShake *= 0.82
+  if (flashAlpha > 0) flashAlpha *= 0.88
+  if (bgPulse > 0) bgPulse *= 0.94
 }
 
 // ═══════════════ RENDER ═══════════════
@@ -565,79 +885,154 @@ function render() {
     )
   }
 
-  // Background
-  ctx.fillStyle = '#08080f'
+  // ─── Background ───
+  ctx.fillStyle = '#06060c'
   ctx.fillRect(0, 0, W, H)
 
-  // Subtle grid
-  ctx.strokeStyle = 'rgba(255,255,255,0.015)'
-  ctx.lineWidth = 0.5
-  const gridSize = 40
-  for (let gx = 0; gx < W; gx += gridSize) {
-    ctx.beginPath()
-    ctx.moveTo(gx, 0)
-    ctx.lineTo(gx, H)
-    ctx.stroke()
-  }
-  for (let gy = 0; gy < H; gy += gridSize) {
-    ctx.beginPath()
-    ctx.moveTo(0, gy)
-    ctx.lineTo(W, gy)
-    ctx.stroke()
+  // Background pulse (on destroy)
+  if (bgPulse > 0.01) {
+    const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.7)
+    grad.addColorStop(0, 'hsla(' + flashHue + ', 60%, 15%, ' + (bgPulse * 0.1) + ')')
+    grad.addColorStop(1, 'transparent')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, W, H)
   }
 
-  // Death zone glow
+  // Stars
+  for (const s of stars) {
+    const twinkle = 0.5 + 0.5 * Math.sin(time * s.twinkleSpeed + s.x)
+    const alpha = s.brightness * twinkle
+    const sx = s.x % W
+    const sy = (s.y + time * s.speed * 20) % H
+    ctx.fillStyle = 'rgba(200,210,255,' + alpha + ')'
+    ctx.fillRect(sx, sy, s.size, s.size)
+  }
+
+  // Subtle vertical scan lines
+  ctx.fillStyle = 'rgba(255,255,255,0.008)'
+  for (let sx = 0; sx < W; sx += 3) {
+    ctx.fillRect(sx, 0, 1, H)
+  }
+
+  // Death zone
   const dzY = H - 110
-  const dzGrad = ctx.createLinearGradient(0, dzY - 30, 0, dzY + 10)
+  // Pulsing danger zone gradient
+  const dangerPulse = 0.5 + 0.5 * Math.sin(time * 3)
+  const dzGrad = ctx.createLinearGradient(0, dzY - 60, 0, H)
   dzGrad.addColorStop(0, 'transparent')
-  dzGrad.addColorStop(1, 'rgba(255,30,30,0.04)')
+  dzGrad.addColorStop(0.3, 'rgba(255,20,20,' + (0.02 + dangerPulse * 0.015) + ')')
+  dzGrad.addColorStop(1, 'rgba(255,20,20,' + (0.06 + dangerPulse * 0.03) + ')')
   ctx.fillStyle = dzGrad
-  ctx.fillRect(0, dzY - 30, W, 40)
+  ctx.fillRect(0, dzY - 60, W, H - dzY + 60)
 
-  // Falling words
+  // Death zone line
+  ctx.strokeStyle = 'rgba(255,40,40,' + (0.15 + dangerPulse * 0.1) + ')'
+  ctx.lineWidth = 1
+  ctx.setLineDash([8, 12])
+  ctx.beginPath()
+  ctx.moveTo(0, dzY)
+  ctx.lineTo(W, dzY)
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  // ─── Target link line ───
+  if (targetWord && !targetWord.destroyed) {
+    const tx = targetWord.x + targetWord.width / 2
+    const ty = targetWord.y + targetWord.fontSize
+    const bx = W / 2
+    const by = H - 52
+    ctx.strokeStyle = 'hsla(' + targetWord.hue + ', 50%, 50%, 0.08)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(bx, by)
+    ctx.lineTo(tx, ty)
+    ctx.stroke()
+  }
+
+  // ─── Shockwaves ───
+  for (const sw of shockwaves) {
+    const alpha = (sw.life / sw.maxLife) * 0.3
+    ctx.strokeStyle = 'hsla(' + sw.hue + ', 60%, 60%, ' + alpha + ')'
+    ctx.lineWidth = 2 * (sw.life / sw.maxLife)
+    ctx.beginPath()
+    ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  // ─── Falling words ───
   for (const w of fallingWords) {
     if (w.destroyed) continue
     ctx.font = w.font
     ctx.textBaseline = 'top'
 
-    // Glow for partially matched
+    // Warning pulse — word glows red near death zone
+    const warn = w.warningPulse
+    const warnPulse = warn > 0 ? 0.5 + 0.5 * Math.sin(time * 8) : 0
+
     if (w.matched > 0) {
       const matchedText = w.text.substring(0, w.matched)
       const remainText = w.text.substring(w.matched)
       const matchedW = ctx.measureText(matchedText).width
 
-      // Matched chars — bright
-      ctx.fillStyle = 'hsla(' + w.hue + ', 80%, 70%, ' + w.alpha + ')'
+      // Matched chars — bright, saturated
+      ctx.fillStyle = 'hsla(' + w.hue + ', 90%, 75%, ' + w.alpha + ')'
       ctx.fillText(matchedText, w.x, w.y)
 
       // Remaining — dimmer
-      ctx.fillStyle = 'hsla(' + w.hue + ', 30%, 50%, ' + (w.alpha * 0.5) + ')'
+      ctx.fillStyle = 'hsla(' + w.hue + ', 25%, 45%, ' + (w.alpha * 0.45) + ')'
       ctx.fillText(remainText, w.x + matchedW, w.y)
 
-      // Underline progress
-      ctx.fillStyle = 'hsla(' + w.hue + ', 80%, 60%, ' + (w.alpha * 0.6) + ')'
-      ctx.fillRect(w.x, w.y + w.fontSize + 2, matchedW, 2)
+      // Progress bar underline
+      const totalW = ctx.measureText(w.text).width
+      // bg bar
+      ctx.fillStyle = 'hsla(' + w.hue + ', 30%, 30%, ' + (w.alpha * 0.2) + ')'
+      ctx.fillRect(w.x, w.y + w.fontSize + 3, totalW, 2)
+      // progress bar
+      ctx.fillStyle = 'hsla(' + w.hue + ', 80%, 60%, ' + (w.alpha * 0.7) + ')'
+      ctx.fillRect(w.x, w.y + w.fontSize + 3, matchedW, 2)
     } else {
-      // Unmatched — default
-      const proximity = 1 - Math.max(0, (dzY - w.y)) / dzY
-      const r = Math.floor(proximity * 200)
-      ctx.fillStyle = 'hsla(' + w.hue + ', 40%, ' + (55 + proximity * 20) + '%, ' + w.alpha + ')'
+      // Unmatched
+      const proximity = Math.max(0, w.y / dzY)
+      let h = w.hue
+      let s = 35
+      let l = 50 + proximity * 15
+
+      // Danger zone warning: shift to red
+      if (warn > 0) {
+        h = h + (0 - h) * warn * warnPulse
+        s = 35 + warn * 40
+        l = l + warn * warnPulse * 15
+      }
+
+      ctx.fillStyle = 'hsla(' + h + ', ' + s + '%, ' + l + '%, ' + w.alpha + ')'
       ctx.fillText(w.text, w.x, w.y)
     }
   }
 
-  // Particles
+  // ─── Particles ───
   for (const p of particles) {
-    const pAlpha = (p.life / p.maxLife)
+    const pAlpha = p.life / p.maxLife
     if (p.type === 'letter') {
       ctx.save()
       ctx.translate(p.x, p.y)
       ctx.rotate(p.rotation)
-      ctx.font = p.size + 'px "JetBrains Mono", monospace'
+      ctx.font = 'bold ' + p.size + 'px "JetBrains Mono", monospace'
       ctx.textBaseline = 'middle'
+      ctx.textAlign = 'center'
       ctx.fillStyle = 'hsla(' + p.hue + ', 70%, 65%, ' + (pAlpha * 0.7) + ')'
       ctx.fillText(p.char, 0, 0)
       ctx.restore()
+    } else if (p.type === 'sparkle') {
+      // Diamond shape
+      const sz = p.size * pAlpha
+      ctx.fillStyle = 'hsla(' + p.hue + ', 80%, 80%, ' + (pAlpha * 0.6) + ')'
+      ctx.beginPath()
+      ctx.moveTo(p.x, p.y - sz)
+      ctx.lineTo(p.x + sz * 0.6, p.y)
+      ctx.lineTo(p.x, p.y + sz)
+      ctx.lineTo(p.x - sz * 0.6, p.y)
+      ctx.closePath()
+      ctx.fill()
     } else {
       ctx.beginPath()
       ctx.arc(p.x, p.y, p.size * pAlpha, 0, Math.PI * 2)
@@ -646,18 +1041,31 @@ function render() {
     }
   }
 
-  // Flash effect
-  if (flashAlpha > 0.005) {
-    ctx.fillStyle = 'rgba(255,255,255,' + flashAlpha + ')'
+  // ─── Floating texts (score popups) ───
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (const ft of floatingTexts) {
+    const alpha = ft.life / ft.maxLife
+    const scale = 0.8 + (1 - alpha) * 0.4
+    ctx.font = 'bold ' + Math.round(ft.size * scale) + 'px "JetBrains Mono", monospace'
+    ctx.fillStyle = 'hsla(' + ft.hue + ', 80%, 70%, ' + (alpha * 0.9) + ')'
+    ctx.fillText(ft.text, ft.x, ft.y)
+  }
+  ctx.textAlign = 'start'
+
+  // ─── Flash effect ───
+  if (flashAlpha > 0.003) {
+    ctx.fillStyle = 'hsla(' + flashHue + ', 50%, 70%, ' + (flashAlpha * 0.5) + ')'
     ctx.fillRect(0, 0, W, H)
   }
 
-  // Input cursor blink
+  // ─── Input cursor blink ───
   if (gameActive) {
-    const cursorAlpha = 0.3 + Math.sin(time * 6) * 0.2
-    ctx.fillStyle = 'rgba(255,200,100,' + cursorAlpha + ')'
+    const cursorAlpha = 0.4 + Math.sin(time * 8) * 0.3
+    ctx.font = '30px "JetBrains Mono", monospace'
     const inputW = ctx.measureText(inputBuffer).width
-    ctx.fillRect(W/2 + inputW/2 + 2, H - 60, 2, 24)
+    ctx.fillStyle = 'rgba(255,200,100,' + cursorAlpha + ')'
+    ctx.fillRect(W / 2 + inputW / 2 + 4, H - 54, 2, 28)
   }
 
   ctx.restore()
@@ -665,16 +1073,20 @@ function render() {
 
 // ═══════════════ RESIZE ═══════════════
 function resize() {
-  dpr = window.devicePixelRatio || 1
+  dpr = Math.min(window.devicePixelRatio || 1, 2) // cap at 2x for perf
   W = window.innerWidth
   H = window.innerHeight
   canvas.width = W * dpr
   canvas.height = H * dpr
+  initStars()
 }
 
 // ═══════════════ LOOP ═══════════════
-function loop() {
-  update()
+let lastTime = 0
+function loop(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05) // cap at 50ms
+  lastTime = now
+  update(dt)
   render()
   requestAnimationFrame(loop)
 }
@@ -695,6 +1107,7 @@ document.addEventListener('keydown', e => {
     inputBuffer = ''
     inputEl.textContent = ''
     for (const w of fallingWords) w.matched = 0
+    targetWord = null
     return
   }
 
@@ -709,16 +1122,27 @@ document.addEventListener('keydown', e => {
   }
 })
 
-// Handle IME (Korean input)
+// Handle IME (Korean input) — real-time matching during composition
 let composing = false
-document.addEventListener('compositionstart', () => { composing = true })
+let preComposeBuffer = ''
+document.addEventListener('compositionstart', () => {
+  composing = true
+  preComposeBuffer = inputBuffer
+})
+document.addEventListener('compositionupdate', e => {
+  if (!gameActive) return
+  inputBuffer = preComposeBuffer + (e.data || '')
+  inputEl.textContent = inputBuffer
+  checkMatch()
+})
 document.addEventListener('compositionend', e => {
   composing = false
   if (!gameActive) return
-  inputBuffer = e.data || ''
+  inputBuffer = preComposeBuffer + (e.data || '')
   inputEl.textContent = inputBuffer
-  totalTyped += inputBuffer.length
+  totalTyped += (e.data || '').length
   checkMatch()
+  preComposeBuffer = ''
 })
 
 // Hidden input for mobile / IME
@@ -767,7 +1191,7 @@ window.addEventListener('resize', resize)
 
 // ═══════════════ INIT ═══════════════
 resize()
-loop()
+requestAnimationFrame(loop)
 
 </script>
 </body>
