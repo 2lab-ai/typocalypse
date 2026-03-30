@@ -271,7 +271,7 @@ const words = [
   'infrastructure', 'constellation',
 ]
 
-const powerUpWords = ['BOMB', 'HEAL', 'SLOW', 'NUKE']
+const powerUpWords = ['bomb', 'heal', 'slow', 'nuke']
 const bossWords = ['typocalypse', 'infrastructure', 'constellation', 'deconstruction', 'electromagnetic']
 const MAX_PARTICLES = 300
 
@@ -656,7 +656,7 @@ function spawnWord() {
   const baseSpeed = (0.25 + level * 0.06 + Math.random() * 0.15) * DIFF[difficulty].speedMul
   const speed = freezeActive ? 0.1 : baseSpeed
   const hue = isPowerUp
-    ? (word === 'BOMB' || word === 'NUKE' ? 0 : word === 'HEAL' ? 120 : 180)
+    ? (word === 'bomb' || word === 'nuke' ? 0 : word === 'heal' ? 120 : 180)
     : 25 + Math.random() * 35
 
   fallingWords.push({
@@ -734,6 +734,17 @@ function checkMatch() {
 
   targetWord = bestMatch
 
+  // Auto-clear: if nothing matches at all, reset buffer immediately
+  if (!bestMatch && inputBuffer.length > 0) {
+    inputBuffer = ''
+    inputEl.textContent = ''
+    for (const w of fallingWords) {
+      if (!w.destroyed) { w.matched = 0; w.prevMatched = 0 }
+    }
+    targetWord = null
+    return
+  }
+
   if (bestMatch && inputBuffer === bestMatch.text) {
     destroyWord(bestMatch)
     inputBuffer = ''
@@ -793,27 +804,28 @@ function destroyWord(w) {
   // Power-ups
   if (w.isPowerUp && w.powerType) {
     switch (w.powerType) {
-      case 'BOMB': case 'NUKE': {
+      case 'bomb': case 'nuke': {
         const bonus = fallingWords.filter(fw => !fw.destroyed && fw !== w).length * 50
         score += bonus
         for (const fw of fallingWords) {
           if (!fw.destroyed) { fw.destroyed = true; spawnExplosion(fw.x + fw.width / 2, fw.y, fw.hue, 8) }
         }
         screenShake = 25; flashAlpha = 0.4
-        spawnFloatingText(W / 2, H / 3, w.powerType + '!', w.hue, 36)
+        spawnFloatingText(W / 2, H / 3, w.powerType.toUpperCase() + '!', w.hue, 36)
         break
       }
-      case 'HEAL': {
+      case 'heal': {
         lives = Math.min(lives + 1, DIFF[difficulty].lives + 2)
         flashAlpha = 0.15; flashHue = 120
         spawnFloatingText(cx, cy - 30, '+1 LIFE', 120, 24)
         break
       }
-      case 'SLOW': {
+      case 'slow': {
         freezeActive = true; freezeTimer = 5
         for (const fw of fallingWords) { if (!fw.destroyed) fw.speed *= 0.3 }
         flashAlpha = 0.12; flashHue = 180
         spawnFloatingText(cx, cy - 30, 'SLOW!', 180, 24)
+
         break
       }
     }
@@ -1096,6 +1108,8 @@ function render() {
 
       const gx = w.x + glyph.x
       const gy = w.y + popOffset
+      // Power-ups display uppercase, everything else as-is
+      const displayChar = w.isPowerUp ? glyph.char.toUpperCase() : glyph.char
 
       if (pop > 0.05) {
         // Draw scaled glyph (pop effect)
@@ -1103,11 +1117,11 @@ function render() {
         ctx.translate(gx + glyph.width / 2, gy + w.fontSize / 2)
         ctx.scale(popScale, popScale)
         ctx.fillStyle = 'hsla(' + h + ', ' + s + '%, ' + l + '%, ' + a + ')'
-        ctx.fillText(glyph.char, -glyph.width / 2, -w.fontSize / 2)
+        ctx.fillText(displayChar, -glyph.width / 2, -w.fontSize / 2)
         ctx.restore()
       } else {
         ctx.fillStyle = 'hsla(' + h + ', ' + s + '%, ' + l + '%, ' + a + ')'
-        ctx.fillText(glyph.char, gx, gy)
+        ctx.fillText(displayChar, gx, gy)
       }
     }
 
@@ -1237,22 +1251,29 @@ function loop(now) {
 
 // ═══════════════ INPUT ═══════════════
 document.addEventListener('keydown', e => {
-  // Pause toggle
-  if (e.key === 'p' || e.key === 'P') {
+  // Pause toggle — only when game active but NOT typing (use Escape for clear)
+  if ((e.key === 'p' || e.key === 'P') && (!gameActive || paused || inputBuffer.length === 0)) {
     if (gameActive) {
       paused = !paused
       document.getElementById('pause-overlay').classList.toggle('show', paused)
     }
     return
   }
-  // Mute toggle
-  if (e.key === 'm' || e.key === 'M') {
+  // Mute toggle — only when NOT actively typing
+  if ((e.key === 'm' || e.key === 'M') && (!gameActive || paused || inputBuffer.length === 0)) {
     muted = !muted
     if (masterGain) masterGain.gain.value = muted ? 0 : 0.7
     document.getElementById('mute-indicator').style.display = muted ? 'block' : 'none'
     return
   }
-  if (paused) return
+  if (paused) {
+    // Allow P to unpause even when paused
+    if (e.key === 'p' || e.key === 'P') {
+      paused = false
+      document.getElementById('pause-overlay').classList.remove('show')
+    }
+    return
+  }
   if (!gameActive) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startGame(); focusInput() }
     return
@@ -1260,7 +1281,9 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Backspace') { e.preventDefault(); inputBuffer = inputBuffer.slice(0, -1); inputEl.textContent = inputBuffer; checkMatch(); return }
   if (e.key === 'Escape') { inputBuffer = ''; inputEl.textContent = ''; for (const w of fallingWords) { w.matched = 0 }; targetWord = null; return }
   if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-    e.preventDefault(); inputBuffer += e.key; inputEl.textContent = inputBuffer
+    e.preventDefault()
+    inputBuffer += e.key.toLowerCase() // Force lowercase for matching
+    inputEl.textContent = inputBuffer
     totalTyped++; playTypeSound(); checkMatch()
   }
 })
@@ -1270,12 +1293,12 @@ let composing = false, preComposeBuffer = ''
 document.addEventListener('compositionstart', () => { composing = true; preComposeBuffer = inputBuffer })
 document.addEventListener('compositionupdate', e => {
   if (!gameActive) return
-  inputBuffer = preComposeBuffer + (e.data || '')
+  inputBuffer = preComposeBuffer + (e.data || '').toLowerCase()
   inputEl.textContent = inputBuffer; checkMatch()
 })
 document.addEventListener('compositionend', e => {
   composing = false; if (!gameActive) return
-  inputBuffer = preComposeBuffer + (e.data || '')
+  inputBuffer = preComposeBuffer + (e.data || '').toLowerCase()
   inputEl.textContent = inputBuffer
   totalTyped += (e.data || '').length; checkMatch(); preComposeBuffer = ''
 })
@@ -1292,7 +1315,7 @@ function focusInput() { hiddenInput.focus(); hiddenInput.value = '' }
 
 hiddenInput.addEventListener('input', () => {
   if (!gameActive || composing) return
-  const val = hiddenInput.value
+  const val = hiddenInput.value.toLowerCase()
   if (val.length > 0) { inputBuffer += val; inputEl.textContent = inputBuffer; totalTyped += val.length; playTypeSound(); checkMatch() }
   hiddenInput.value = ''
 })
