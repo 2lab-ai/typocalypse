@@ -92,7 +92,7 @@
   #game-over .final-score { font-size: 80px; font-weight: 300; color: #ffaa00; margin-bottom: 4px; }
   #game-over .final-label { color: rgba(255,255,255,0.2); font-size: 11px; letter-spacing: 0.2em; margin-bottom: 24px; }
   #game-over .final-stats { color: rgba(255,255,255,0.35); font-size: 12px; margin-bottom: 40px; text-align: center; line-height: 2; }
-  #game-over .stats-row { display: flex; gap: 32px; margin-bottom: 32px; }
+  #game-over .stats-row { display: flex; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; justify-content: center; }
   #game-over .stat-item { text-align: center; }
   #game-over .stat-val { font-size: 28px; font-weight: 700; color: rgba(255,200,100,0.8); }
   #game-over .stat-label { font-size: 10px; letter-spacing: 0.15em; color: rgba(255,255,255,0.2); margin-top: 4px; }
@@ -132,7 +132,7 @@
     COMBOS MULTIPLY SCORE · POWER-UPS APPEAR AT LEVEL 2+<br>
     <span id="hi-score-display" style="color:rgba(255,200,100,0.3)"></span>
   </div>
-  <div class="pretext-badge">POWERED BY PRETEXT · PER-GLYPH SEGMENTED LAYOUT</div>
+  <div class="pretext-badge">POWERED BY PRETEXT · SEGMENT-AWARE PER-GLYPH LAYOUT</div>
 </div>
 
 <div id="game-over">
@@ -187,6 +187,8 @@ let screenShake = 0, flashAlpha = 0, flashHue = 0
 let targetWord = null, stars = []
 let bgPulse = 0, displayScore = 0, intensity = 0
 let freezeTimer = 0, freezeActive = false
+let wordsMissed = 0, fastestWord = null, fastestWordTime = Infinity
+let wordStartTimes = new Map() // track per-word typing start time
 
 // Audio
 let audioCtx = null, masterGain = null, reverbNode = null
@@ -225,7 +227,7 @@ function getWordPool() {
 }
 
 // ═══════════════ PRETEXT LAYOUT ═══════════════
-// Use pretext to compute per-glyph positions for each word
+// Use pretext to compute per-glyph positions with segment metadata
 function computeGlyphLayout(text, font) {
   ctx.font = font
   // Use pretext's prepareWithSegments for precise glyph measurement
@@ -234,17 +236,17 @@ function computeGlyphLayout(text, font) {
     // layoutNextLine gives us precise segment positions
     const line = layoutNextLine(prepared, 9999) // large maxWidth = single line
     if (line && line.segments) {
-      // Build per-glyph positions from segments
+      // Build per-glyph positions from segments, preserving segment index
       const glyphs = []
-      let cursor = 0
-      for (const seg of line.segments) {
+      const totalSegs = line.segments.length
+      for (let si = 0; si < totalSegs; si++) {
+        const seg = line.segments[si]
         const segText = seg.text || ''
         for (let i = 0; i < segText.length; i++) {
           const charBefore = segText.substring(0, i)
           const charW = ctx.measureText(segText[i]).width
           const charX = seg.x + ctx.measureText(charBefore).width
-          glyphs.push({ char: segText[i], x: charX, width: charW })
-          cursor++
+          glyphs.push({ char: segText[i], x: charX, width: charW, segIdx: si, totalSegs })
         }
       }
       if (glyphs.length > 0) return glyphs
@@ -257,7 +259,7 @@ function computeGlyphLayout(text, font) {
   let x = 0
   for (const ch of text) {
     const w = ctx.measureText(ch).width
-    glyphs.push({ char: ch, x, width: w })
+    glyphs.push({ char: ch, x, width: w, segIdx: 0, totalSegs: 1 })
     x += w
   }
   return glyphs
@@ -457,10 +459,14 @@ function startBGM() {
   const hatBuf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.04, audioCtx.sampleRate)
   const hatData = hatBuf.getChannelData(0)
   for (let i = 0; i < hatData.length; i++) hatData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / hatData.length, 3)
+  // Bass pattern: minor pentatonic root notes
+  const bassNotes = [55, 55, 65.41, 55, 73.42, 65.41, 55, 55] // A1-based minor penta
+  let bassIdx = 0
   setInterval(() => {
     if (!audioCtx || !gameActive) return
     const now = audioCtx.currentTime
     beatCount++
+    // Kick drum
     if (beatCount % 4 === 1 || beatCount % 4 === 3) {
       const k = audioCtx.createOscillator()
       const kg = audioCtx.createGain()
@@ -472,6 +478,7 @@ function startBGM() {
       k.connect(kg); kg.connect(masterGain)
       k.start(now); k.stop(now + 0.2)
     }
+    // Hi-hat
     const hat = audioCtx.createBufferSource()
     hat.buffer = hatBuf
     const hg = audioCtx.createGain()
@@ -482,6 +489,21 @@ function startBGM() {
     hpf.type = 'highpass'; hpf.frequency.value = 6000
     hat.connect(hpf); hpf.connect(hg); hg.connect(masterGain)
     hat.start(now); hat.stop(now + 0.05)
+    // Bass line — plays every 2 beats
+    if (beatCount % 2 === 0) {
+      const bass = audioCtx.createOscillator()
+      const bg = audioCtx.createGain()
+      const blp = audioCtx.createBiquadFilter()
+      bass.type = 'sawtooth'
+      bass.frequency.setValueAtTime(bassNotes[bassIdx % bassNotes.length], now)
+      bassIdx++
+      blp.type = 'lowpass'; blp.frequency.value = 300
+      bg.gain.setValueAtTime(0.045, now)
+      bg.gain.setValueAtTime(0.045, now + 0.15)
+      bg.gain.exponentialRampToValueAtTime(0.001, now + 0.32)
+      bass.connect(blp); blp.connect(bg); bg.connect(masterGain)
+      bass.start(now); bass.stop(now + 0.35)
+    }
   }, beatMs)
 }
 
@@ -643,6 +665,8 @@ function checkMatch() {
     w.prevMatched = w.matched
     if (w.text.startsWith(inputBuffer)) {
       w.matched = inputBuffer.length
+      // Track typing start time for fastest-word stat
+      if (w.matched === 1 && !wordStartTimes.has(w)) wordStartTimes.set(w, performance.now())
       // Trigger per-glyph pop for newly matched chars
       for (let i = w.prevMatched; i < w.matched; i++) {
         w.glyphPops[i] = 1.0  // start pop animation
@@ -668,6 +692,13 @@ function destroyWord(w) {
   wordsDestroyed++
   combo++
   if (combo > maxCombo) maxCombo = combo
+
+  // Track fastest word
+  if (wordStartTimes.has(w)) {
+    const elapsed = performance.now() - wordStartTimes.get(w)
+    if (elapsed < fastestWordTime) { fastestWordTime = elapsed; fastestWord = w.text }
+    wordStartTimes.delete(w)
+  }
 
   const multiplier = 1 + Math.floor(combo / 5) * 0.5
   const pts = Math.floor(w.points * multiplier)
@@ -743,7 +774,7 @@ function destroyWord(w) {
 }
 
 function wordReachedBottom(w) {
-  lives--; combo = 0; screenShake = 20; flashAlpha = 0.25; flashHue = 0
+  lives--; combo = 0; wordsMissed++; screenShake = 20; flashAlpha = 0.25; flashHue = 0
   playDamageSound()
   const nearMiss = w.matched > 0 && w.matched >= w.text.length - 1
   spawnExplosion(w.x + w.width / 2, H - 100, 0, 30)
@@ -758,7 +789,8 @@ function startGame() {
   initAudio(); startAmbient(); startBGM()
   gameActive = true
   score = 0; combo = 0; maxCombo = 0; lives = 3; level = 1
-  wordsDestroyed = 0; totalTyped = 0; time = 0
+  wordsDestroyed = 0; totalTyped = 0; time = 0; wordsMissed = 0
+  fastestWord = null; fastestWordTime = Infinity; wordStartTimes = new Map()
   gameStartTime = performance.now(); spawnTimer = 0; inputBuffer = ''
   particles = []; floatingTexts = []; fallingWords = []; shockwaves = []
   flashAlpha = 0; screenShake = 0; bgPulse = 0; displayScore = 0; intensity = 0
@@ -782,13 +814,21 @@ function gameOver() {
   const isNewHigh = score > highScore
   if (isNewHigh) { highScore = score; localStorage.setItem('typocalypse_hi', String(highScore)) }
 
+  const accuracy = wordsDestroyed + wordsMissed > 0
+    ? Math.round(wordsDestroyed / (wordsDestroyed + wordsMissed) * 100) : 100
+  const fastestDisplay = fastestWord
+    ? '"' + fastestWord + '" in ' + (fastestWordTime / 1000).toFixed(2) + 's'
+    : '—'
+
   document.getElementById('final-score').textContent = score.toLocaleString()
   document.getElementById('stats-row').innerHTML = [
-    { val: level, label: 'LEVEL' }, { val: wordsDestroyed, label: 'WORDS' },
+    { val: level, label: 'LEVEL' }, { val: wordsDestroyed, label: 'DESTROYED' },
     { val: maxCombo + 'x', label: 'MAX COMBO' }, { val: wpm, label: 'WPM' },
+    { val: accuracy + '%', label: 'ACCURACY' }, { val: wordsMissed, label: 'MISSED' },
   ].map(s => `<div class="stat-item"><div class="stat-val">${s.val}</div><div class="stat-label">${s.label}</div></div>`).join('')
   const hiText = isNewHigh ? '<br><span style="color:#ffaa00;font-size:14px;letter-spacing:0.1em">NEW HIGH SCORE!</span>' : '<br>Best: ' + highScore.toLocaleString()
-  document.getElementById('final-stats').innerHTML = Math.floor(elapsed) + 's survived · ' + totalTyped + ' keystrokes' + hiText
+  const fastLine = fastestWord ? '<br><span style="color:rgba(100,200,255,0.6);font-size:11px">FASTEST: ' + fastestDisplay + '</span>' : ''
+  document.getElementById('final-stats').innerHTML = Math.floor(elapsed) + 's survived · ' + totalTyped + ' keystrokes' + fastLine + hiText
   gameOverScreen.classList.add('show')
 }
 
@@ -971,9 +1011,14 @@ function render() {
       // Per-glyph scale effect
       const popScale = 1 + pop * 0.3
 
-      let h = w.hue, s, l, a = w.alpha
+      // Segment-based hue: boss/long words get per-segment color gradient
+      const segHueShift = (glyph.totalSegs > 1 && (w.isBoss || w.text.length >= 8))
+        ? (glyph.segIdx / Math.max(1, glyph.totalSegs - 1)) * 60 - 30
+        : 0
+
+      let h = w.hue + segHueShift, s, l, a = w.alpha
       if (isMatched) {
-        h = w.hue; s = 90; l = 75
+        s = 90; l = 75
         a = w.alpha
       } else {
         const prox = Math.max(0, w.y / dzY)
@@ -1003,6 +1048,19 @@ function render() {
       }
     }
 
+    // Segment boundary markers — shows pretext segmentation visually
+    if (w.glyphs.length > 0 && w.glyphs[0].totalSegs > 1) {
+      let prevSeg = -1
+      for (const glyph of w.glyphs) {
+        if (glyph.segIdx !== prevSeg && prevSeg !== -1) {
+          const bx = w.x + glyph.x - 1
+          ctx.fillStyle = 'hsla(' + w.hue + ', 40%, 60%, ' + (w.alpha * 0.12) + ')'
+          ctx.fillRect(bx, w.y + 2, 1, w.fontSize - 4)
+        }
+        prevSeg = glyph.segIdx
+      }
+    }
+
     // Progress bar underline (using pretext-computed total width)
     if (w.matched > 0) {
       const matchedW = w.glyphs[w.matched - 1].x + w.glyphs[w.matched - 1].width
@@ -1010,6 +1068,15 @@ function render() {
       ctx.fillRect(w.x, w.y + w.fontSize + 3, w.width, 2)
       ctx.fillStyle = 'hsla(' + w.hue + ', 80%, 60%, ' + (w.alpha * 0.7) + ')'
       ctx.fillRect(w.x, w.y + w.fontSize + 3, matchedW, 2)
+    }
+
+    // Segment-colored underline ticks for multi-segment words
+    if (w.glyphs.length > 0 && w.glyphs[0].totalSegs > 1) {
+      for (const glyph of w.glyphs) {
+        const segHue = w.hue + (glyph.segIdx / Math.max(1, glyph.totalSegs - 1)) * 60 - 30
+        ctx.fillStyle = 'hsla(' + segHue + ', 50%, 50%, ' + (w.alpha * 0.15) + ')'
+        ctx.fillRect(w.x + glyph.x, w.y + w.fontSize + 6, glyph.width - 1, 1)
+      }
     }
   }
 
